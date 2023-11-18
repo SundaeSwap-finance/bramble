@@ -1,4 +1,4 @@
-module github.com/movio/bramble/examples/gqlgen-service
+module github.com/SundaeSwap-finance/bramble/examples/gqlgen-service
 
 go 1.19
 

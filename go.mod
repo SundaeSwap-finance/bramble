@@ -1,4 +1,4 @@
-module github.com/movio/bramble
+module github.com/SundaeSwap-finance/bramble
 
 go 1.20
 

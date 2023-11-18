@@ -3,7 +3,7 @@ package bramble
 import (
 	"testing"
 
-	"github.com/movio/bramble/testsrv"
+	"github.com/SundaeSwap-finance/bramble/testsrv"
 	"github.com/stretchr/testify/require"
 	"github.com/vektah/gqlparser/v2"
 )

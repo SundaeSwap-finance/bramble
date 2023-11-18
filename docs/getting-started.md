@@ -39,7 +39,7 @@ For the full list of available options see [configuration](configuration.md).
 (requires Golang)
 
 ```
-go install github.com/movio/bramble/cmd/bramble@latest
+go install github.com/SundaeSwap-finance/bramble/cmd/bramble@latest
 ```
 
 ```
@@ -49,7 +49,7 @@ bramble config.json
 ### Docker
 
 ```
-docker run -p 8082:8082 -v $(PWD)/config.json:/config.json ghcr.io/movio/bramble -config config.json
+docker run -p 8082:8082 -v $(PWD)/config.json:/config.json ghcr.io/SundaeSwap-finance/bramble -config config.json
 ```
 
 ## Querying Bramble

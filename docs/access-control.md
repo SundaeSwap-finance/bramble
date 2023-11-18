@@ -6,7 +6,7 @@ Bramble has a simple (yet powerful) access control mechanism allowing plugins to
 
 ## OperationPermissions
 
-The [`OperationPermissions`](https://pkg.go.dev/github.com/movio/bramble/bramble#OperationPermissions) type defines which fields can be requested for a given query.
+The [`OperationPermissions`](https://pkg.go.dev/github.com/SundaeSwap-finance/bramble/bramble#OperationPermissions) type defines which fields can be requested for a given query.
 
 By adding an `OperationPermissions` to the query context it is possible to control the allowed fields for that query.
 

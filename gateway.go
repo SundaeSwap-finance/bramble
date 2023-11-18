@@ -51,7 +51,11 @@ func (g *Gateway) Router(cfg *Config) http.Handler {
 		gatewayHandler.Use(extension.Introspection{})
 	}
 
-	mux.Handle("/query",
+	path := "/query"
+	if cfg.GraphqlPath != nil {
+		path = *cfg.GraphqlPath
+	}
+	mux.Handle(path,
 		applyMiddleware(
 			gatewayHandler,
 			debugMiddleware,

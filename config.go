@@ -28,6 +28,7 @@ type Config struct {
 	DisableIntrospection   bool      `json:"disable-introspection"`
 	MetricsListenAddress   string    `json:"metrics-address"`
 	PrivateListenAddress   string    `json:"private-address"`
+	GraphqlPath            *string   `json:"graphql-path,omitempty"`
 	GatewayPort            int       `json:"gateway-port"`
 	MetricsPort            int       `json:"metrics-port"`
 	PrivatePort            int       `json:"private-port"`

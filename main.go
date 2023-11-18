@@ -26,7 +26,9 @@ func Main() {
 	if err != nil {
 		log.WithError(err).Fatal("failed to get config")
 	}
-	go cfg.Watch()
+	if err := cfg.Watch(); err != nil {
+		log.WithError(err).Fatal("failed to start watching")
+	}
 
 	err = cfg.Init()
 	if err != nil {

@@ -153,71 +153,74 @@ func (c *Config) buildServiceList() ([]string, error) {
 }
 
 // Watch starts watching the config files for change.
-func (c *Config) Watch() {
-	for {
-		select {
-		case err := <-c.watcher.Errors:
-			log.WithError(err).Error("config watch error")
-		case e := <-c.watcher.Events:
-			log.WithFields(log.Fields{"event": e, "files": c.configFiles, "links": c.linkedFiles}).Debug("received config file event")
-			shouldUpdate := false
-			for i := range c.configFiles {
-				// we want to reload the config if:
-				// - the config file was updated, or
-				// - the config file is a symlink and was changed (k8s config map update)
-				if filepath.Clean(e.Name) == c.configFiles[i] && (e.Op == fsnotify.Write || e.Op == fsnotify.Create) {
-					shouldUpdate = true
-					break
-				}
-				currentFile, _ := filepath.EvalSymlinks(c.configFiles[i])
-				if c.linkedFiles[i] != "" && c.linkedFiles[i] != currentFile {
-					c.linkedFiles[i] = currentFile
-					shouldUpdate = true
-					break
-				}
-			}
-
-			if !shouldUpdate {
-				log.Debug("nothing to update")
-				continue
-			}
-
-			if e.Op != fsnotify.Write && e.Op != fsnotify.Create {
-				log.Debug("ignoring non write/create event")
-				continue
-			}
-
-			err := c.Load()
-			if err != nil {
-				log.WithError(err).Error("error reloading config")
-			}
-			log.WithField("services", c.Services).Info("config file updated")
-			err = c.executableSchema.UpdateServiceList(c.Services)
-			if err != nil {
-				log.WithError(err).Error("error updating services")
-			}
-			log.WithField("services", c.Services).Info("updated services")
-		}
+func (c *Config) Watch() error {
+	watcher, err := fsnotify.NewWatcher()
+	if err != nil {
+		return fmt.Errorf("could not create watcher: %w", err)
 	}
+	for _, configFile := range c.configFiles {
+		// watch the directory, else we'll lose the watch if the file is relinked
+		err = watcher.Add(filepath.Dir(configFile))
+		if err != nil {
+			return fmt.Errorf("error add file to watcher: %w", err)
+		}
+		linkedFile, _ := filepath.EvalSymlinks(configFile)
+		c.linkedFiles = append(c.linkedFiles, linkedFile)
+	}
+	c.watcher = watcher
+
+	go func() {
+		for {
+			select {
+			case err := <-c.watcher.Errors:
+				log.WithError(err).Error("config watch error")
+			case e := <-c.watcher.Events:
+				log.WithFields(log.Fields{"event": e, "files": c.configFiles, "links": c.linkedFiles}).Debug("received config file event")
+				shouldUpdate := false
+				for i := range c.configFiles {
+					// we want to reload the config if:
+					// - the config file was updated, or
+					// - the config file is a symlink and was changed (k8s config map update)
+					if filepath.Clean(e.Name) == c.configFiles[i] && (e.Op == fsnotify.Write || e.Op == fsnotify.Create) {
+						shouldUpdate = true
+						break
+					}
+					currentFile, _ := filepath.EvalSymlinks(c.configFiles[i])
+					if c.linkedFiles[i] != "" && c.linkedFiles[i] != currentFile {
+						c.linkedFiles[i] = currentFile
+						shouldUpdate = true
+						break
+					}
+				}
+
+				if !shouldUpdate {
+					log.Debug("nothing to update")
+					continue
+				}
+
+				if e.Op != fsnotify.Write && e.Op != fsnotify.Create {
+					log.Debug("ignoring non write/create event")
+					continue
+				}
+
+				err := c.Load()
+				if err != nil {
+					log.WithError(err).Error("error reloading config")
+				}
+				log.WithField("services", c.Services).Info("config file updated")
+				err = c.executableSchema.UpdateServiceList(c.Services)
+				if err != nil {
+					log.WithError(err).Error("error updating services")
+				}
+				log.WithField("services", c.Services).Info("updated services")
+			}
+		}
+	}()
+	return nil
 }
 
 // GetConfig returns operational config for the gateway
 func GetConfig(configFiles []string) (*Config, error) {
-	watcher, err := fsnotify.NewWatcher()
-	if err != nil {
-		return nil, fmt.Errorf("could not create watcher: %w", err)
-	}
-	var linkedFiles []string
-	for _, configFile := range configFiles {
-		// watch the directory, else we'll lose the watch if the file is relinked
-		err = watcher.Add(filepath.Dir(configFile))
-		if err != nil {
-			return nil, fmt.Errorf("error add file to watcher: %w", err)
-		}
-		linkedFile, _ := filepath.EvalSymlinks(configFile)
-		linkedFiles = append(linkedFiles, linkedFile)
-	}
-
 	cfg := Config{
 		GatewayPort:            8082,
 		PrivatePort:            8083,
@@ -227,11 +230,9 @@ func GetConfig(configFiles []string) (*Config, error) {
 		MaxRequestsPerQuery:    50,
 		MaxServiceResponseSize: 1024 * 1024,
 
-		watcher:     watcher,
 		configFiles: configFiles,
-		linkedFiles: linkedFiles,
 	}
-	err = cfg.Load()
+	err := cfg.Load()
 
 	return &cfg, err
 }

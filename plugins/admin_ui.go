@@ -2,6 +2,7 @@ package plugins
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"sort"
@@ -24,10 +25,27 @@ type AdminUIPlugin struct {
 	bramble.BasePlugin
 	executableSchema *bramble.ExecutableSchema
 	template         *template.Template
+	config           AdminUIPluginConfig
+}
+
+type AdminUIPluginConfig struct {
+	Path *string `json:"path,omitempty"`
 }
 
 func (p *AdminUIPlugin) ID() string {
 	return "admin-ui"
+}
+
+func (p *AdminUIPlugin) Configure(cfg *bramble.Config, data json.RawMessage) error {
+	if data == nil {
+		return nil
+	}
+	err := json.Unmarshal(data, &p.config)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (p *AdminUIPlugin) Init(s *bramble.ExecutableSchema) {
@@ -42,7 +60,11 @@ func (p *AdminUIPlugin) Init(s *bramble.ExecutableSchema) {
 }
 
 func (p *AdminUIPlugin) SetupPrivateMux(mux *http.ServeMux) {
-	mux.HandleFunc("/admin", p.handler)
+	path := "/admin"
+	if p.config.Path != nil {
+		path = *p.config.Path
+	}
+	mux.HandleFunc(path, p.handler)
 }
 
 type services []service

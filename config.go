@@ -99,6 +99,12 @@ func (c *Config) Load() error {
 	}
 	c.Plugins = plugins
 
+	// Set a default, so it can be read by plugins
+	if c.GraphqlPath == nil {
+		p := "/query"
+		c.GraphqlPath = &p
+	}
+
 	if strings.TrimSpace(c.IdFieldName) != "" {
 		IdFieldName = c.IdFieldName
 	}

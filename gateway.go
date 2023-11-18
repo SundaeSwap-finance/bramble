@@ -51,6 +51,7 @@ func (g *Gateway) Router(cfg *Config) http.Handler {
 		gatewayHandler.Use(extension.Introspection{})
 	}
 
+	// We *should* be able to assume that this is set to a default, but no harm in being explicit
 	path := "/query"
 	if cfg.GraphqlPath != nil {
 		path = *cfg.GraphqlPath

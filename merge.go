@@ -77,7 +77,6 @@ func buildFieldURLMap(services ...*Service) FieldURLMap {
 					continue
 				}
 
-				fmt.Printf("Registering %v - %v - %v\n", t.Name, f.Name, rs.ServiceURL)
 				result.RegisterURL(t.Name, f.Name, rs.ServiceURL)
 			}
 		}

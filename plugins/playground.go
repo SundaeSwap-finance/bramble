@@ -2,7 +2,6 @@ package plugins
 
 import (
 	"encoding/json"
-	"fmt"
 	"net/http"
 
 	"github.com/99designs/gqlgen/graphql/playground"
@@ -47,6 +46,5 @@ func (p *PlaygroundPlugin) SetupPublicMux(mux *http.ServeMux) {
 	if p.config.Path != nil {
 		path = *p.config.Path
 	}
-	fmt.Printf("queryPath: %v\n", p.queryPath)
 	mux.HandleFunc(path, playground.Handler("Bramble Playground", p.queryPath))
 }

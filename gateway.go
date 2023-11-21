@@ -2,6 +2,7 @@ package bramble
 
 import (
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/99designs/gqlgen/graphql/handler"
@@ -61,7 +62,15 @@ func (g *Gateway) Router(cfg *Config) http.Handler {
 	if cfg.GraphqlPath != nil {
 		path = *cfg.GraphqlPath
 	}
+	path = strings.TrimSuffix(path, "/")
 	mux.Handle(path,
+		applyMiddleware(
+			gatewayHandler,
+			debugMiddleware,
+		),
+	)
+	// Also map with a / so we can query with the operation name
+	mux.Handle(path+"/",
 		applyMiddleware(
 			gatewayHandler,
 			debugMiddleware,

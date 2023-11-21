@@ -28,6 +28,7 @@ type Config struct {
 	DisableIntrospection   bool      `json:"disable-introspection"`
 	MetricsListenAddress   string    `json:"metrics-address"`
 	PrivateListenAddress   string    `json:"private-address"`
+	LoopbackAddress        string    `json:"loopback-address"`
 	GraphqlPath            *string   `json:"graphql-path,omitempty"`
 	GatewayPort            int       `json:"gateway-port"`
 	MetricsPort            int       `json:"metrics-port"`
@@ -69,6 +70,9 @@ func (c *Config) PrivateAddress() string {
 }
 
 func (c *Config) PrivateHttpAddress(path string) string {
+	if c.LoopbackAddress != "" {
+		return fmt.Sprintf("%s/%s", c.LoopbackAddress, path)
+	}
 	if c.PrivateListenAddress == "" {
 		return fmt.Sprintf("http://localhost:%d/%s", c.PrivatePort, path)
 	}

@@ -286,6 +286,9 @@ func (c *Config) Init() error {
 	}
 	queryClient := NewClientWithPlugins(c.plugins, queryClientOptions...)
 	es := NewExecutableSchema(c.plugins, c.MaxRequestsPerQuery, queryClient, services...)
+	if err := es.UpdateSchema(true); err != nil {
+		return fmt.Errorf("error updating schema: %w", err)
+	}
 
 	c.executableSchema = es
 

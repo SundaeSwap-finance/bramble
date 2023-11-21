@@ -254,7 +254,11 @@ func (r *metaResolver) brambleType(name string, def *ast.Definition) brambleType
 		var svcName string
 		if svcURL, err := r.executableSchema.Locations.URLFor(def.Name, "", f.Name); err == nil {
 			svc := r.executableSchema.Services[svcURL]
-			svcName = svc.Name
+			if svc == nil {
+				svcName = "multiple"
+			} else {
+				svcName = svc.Name
+			}
 		}
 		var args []brambleArg
 		for _, a := range f.Arguments {
@@ -334,7 +338,12 @@ func (r *metaResolver) getFields(schema *ast.Schema) []brambleField {
 			var svcName string
 			if svcURL, err := r.executableSchema.Locations.URLFor(def.Name, "", f.Name); err == nil {
 				svc := r.executableSchema.Services[svcURL]
-				svcName = svc.Name
+				if svc == nil {
+					// type is shared across multiple services as a utility type
+					svcName = "multiple"
+				} else {
+					svcName = svc.Name
+				}
 			}
 			var args []brambleArg
 			for _, a := range f.Arguments {

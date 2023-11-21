@@ -30,9 +30,10 @@ func NewGatewayFromConfig(cfg *Config) *Gateway {
 }
 
 // UpdateSchemas periodically updates the execute schema
-func (g *Gateway) UpdateSchemas(interval time.Duration) {
-	time.Sleep(interval)
-	for range time.Tick(interval) {
+func (g *Gateway) UpdateSchemas(firstDelay, interval time.Duration) {
+	time.Sleep(firstDelay)
+	c := time.Tick(interval)
+	for ; true; <-c {
 		err := g.ExecutableSchema.UpdateSchema(false)
 		if err != nil {
 			log.WithError(err).Error("error updating schemas")

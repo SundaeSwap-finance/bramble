@@ -40,7 +40,7 @@ func Main() {
 	gtw := NewGateway(cfg.executableSchema, cfg.plugins)
 	RegisterMetrics()
 
-	go gtw.UpdateSchemas(cfg.PollIntervalDuration)
+	go gtw.UpdateSchemas(cfg.PollIntervalDuration, cfg.PollIntervalDuration)
 
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer cancel()

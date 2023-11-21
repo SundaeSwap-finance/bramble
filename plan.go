@@ -285,7 +285,6 @@ func routeSelectionSet(ctx *PlanningContext, parentType string, parentLocation s
 				result[loc] = ss
 			}
 		}
-		fmt.Printf("A: %v\n", result)
 		// filter fields living only on the gateway
 		if ss := filterSelectionSetByLoc(ctx, input, internalServiceName, parentType); len(ss) > 0 {
 			result[internalServiceName] = ss

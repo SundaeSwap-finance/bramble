@@ -82,11 +82,12 @@ func (s services) Swap(i, j int) {
 }
 
 type service struct {
-	Name       string
-	Version    string
-	ServiceURL string
-	Schema     string
-	Status     string
+	Name           string
+	Version        string
+	ServiceURL     string
+	Schema         string
+	Status         string
+	UpdateDuration string
 }
 
 type templateVariables struct {
@@ -110,11 +111,12 @@ func (p *AdminUIPlugin) handler(w http.ResponseWriter, r *http.Request) {
 
 	for _, s := range p.executableSchema.Services {
 		vars.Services = append(vars.Services, service{
-			Name:       s.Name,
-			Version:    s.Version,
-			ServiceURL: s.ServiceURL,
-			Schema:     s.SchemaSource,
-			Status:     s.Status,
+			Name:           s.Name,
+			Version:        s.Version,
+			ServiceURL:     s.ServiceURL,
+			Schema:         s.SchemaSource,
+			Status:         s.Status,
+			UpdateDuration: s.UpdateDuration.String(),
 		})
 	}
 
@@ -312,6 +314,7 @@ const htmlTemplate = `
                 <div class="version">{{.Version}}</div>
                 <div class="url">{{.ServiceURL}}</div>
                 <div class="status">{{.Status}}</div>
+                <div class="update-timing">Last schema update took {{.UpdateDuration}}</div>
             </div>
             <label class="collapsible">
                 <input type="checkbox" />

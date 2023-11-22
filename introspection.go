@@ -3,6 +3,7 @@ package bramble
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/vektah/gqlparser/v2"
 	"github.com/vektah/gqlparser/v2/ast"
@@ -10,12 +11,13 @@ import (
 
 // Service is a federated service.
 type Service struct {
-	ServiceURL   string
-	Name         string
-	Version      string
-	SchemaSource string
-	Schema       *ast.Schema
-	Status       string
+	ServiceURL     string
+	Name           string
+	Version        string
+	SchemaSource   string
+	Schema         *ast.Schema
+	Status         string
+	UpdateDuration time.Duration
 
 	client *GraphQLClient
 }
@@ -41,6 +43,7 @@ func (s *Service) Update() (bool, error) {
 		} `json:"service"`
 	}{}
 
+	start := time.Now()
 	if err := s.client.Request(context.Background(), s.ServiceURL, req, &response); err != nil {
 		s.SchemaSource = ""
 		s.Status = "Unreachable"
@@ -64,6 +67,7 @@ func (s *Service) Update() (bool, error) {
 		s.Status = fmt.Sprintf("Invalid (%s)", err)
 		return updated, err
 	}
+	s.UpdateDuration = time.Since(start)
 
 	s.Status = "OK"
 	return updated, nil

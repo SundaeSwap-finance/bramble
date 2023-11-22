@@ -33,8 +33,11 @@ func NewGatewayFromConfig(cfg *Config) *Gateway {
 // UpdateSchemas periodically updates the execute schema
 func (g *Gateway) UpdateSchemas(firstDelay, interval time.Duration) {
 	time.Sleep(firstDelay)
-	c := time.Tick(interval)
-	for ; true; <-c {
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+
+	for {
+		<-ticker.C
 		err := g.ExecutableSchema.UpdateSchema(false)
 		if err != nil {
 			log.WithError(err).Error("error updating schemas")

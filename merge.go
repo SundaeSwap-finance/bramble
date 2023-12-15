@@ -189,7 +189,7 @@ func mergeTypes(a, b map[string]*ast.Definition) (map[string]*ast.Definition, er
 		}
 
 		// Allow redeclaring types across services, so long as they're identical
-		if areIdentical(va, &newVB) {
+		if va.Name != queryObjectName && areIdentical(va, &newVB) {
 			va.Position.Src.Name = "multiple"
 			continue
 		}

@@ -297,6 +297,20 @@ func (c *Config) reload() error {
 
 // GetConfig returns operational config for the gateway
 func GetConfig(configFiles []string) (*Config, error) {
+	watcher, err := fsnotify.NewWatcher()
+	if err != nil {
+		return nil, fmt.Errorf("could not create watcher: %w", err)
+	}
+	var linkedFiles []string
+	for _, configFile := range configFiles {
+		// watch the directory, else we'll lose the watch if the file is relinked
+		err = watcher.Add(filepath.Dir(configFile))
+		if err != nil {
+			return nil, fmt.Errorf("error add file to watcher: %w", err)
+		}
+		linkedFile, _ := filepath.EvalSymlinks(configFile)
+		linkedFiles = append(linkedFiles, linkedFile)
+	}
 	cfg := Config{
 		DefaultTimeouts: TimeoutConfig{
 			ReadTimeout:  "5s",
@@ -315,7 +329,7 @@ func GetConfig(configFiles []string) (*Config, error) {
 		tracer:      otel.GetTracerProvider().Tracer(instrumentationName),
 		configFiles: configFiles,
 	}
-	err := cfg.Load()
+	err = cfg.Load()
 
 	return &cfg, err
 }

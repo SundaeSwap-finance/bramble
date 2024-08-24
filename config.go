@@ -40,6 +40,8 @@ type Config struct {
 	DisableIntrospection   bool          `json:"disable-introspection"`
 	MetricsListenAddress   string        `json:"metrics-address"`
 	PrivateListenAddress   string        `json:"private-address"`
+	LoopbackAddress        string        `json:"loopback-address"`
+	GraphqlPath            *string       `json:"graphql-path,omitempty"`
 	GatewayPort            int           `json:"gateway-port"`
 	MetricsPort            int           `json:"metrics-port"`
 	PrivatePort            int           `json:"private-port"`
@@ -86,6 +88,9 @@ func (c *Config) PrivateAddress() string {
 }
 
 func (c *Config) PrivateHttpAddress(path string) string {
+	if c.LoopbackAddress != "" {
+		return fmt.Sprintf("%s/%s", c.LoopbackAddress, path)
+	}
 	if c.PrivateListenAddress == "" {
 		return fmt.Sprintf("http://localhost:%d/%s", c.PrivatePort, path)
 	}
@@ -115,6 +120,12 @@ func (c *Config) Load() error {
 		plugins = append(plugins, c.Plugins...)
 	}
 	c.Plugins = plugins
+
+	// Set a default, so it can be read by plugins
+	if c.GraphqlPath == nil {
+		p := "/query"
+		c.GraphqlPath = &p
+	}
 
 	if strings.TrimSpace(c.IdFieldName) != "" {
 		IdFieldName = c.IdFieldName
@@ -286,21 +297,6 @@ func (c *Config) reload() error {
 
 // GetConfig returns operational config for the gateway
 func GetConfig(configFiles []string) (*Config, error) {
-	watcher, err := fsnotify.NewWatcher()
-	if err != nil {
-		return nil, fmt.Errorf("could not create watcher: %w", err)
-	}
-	var linkedFiles []string
-	for _, configFile := range configFiles {
-		// watch the directory, else we'll lose the watch if the file is relinked
-		err = watcher.Add(filepath.Dir(configFile))
-		if err != nil {
-			return nil, fmt.Errorf("error add file to watcher: %w", err)
-		}
-		linkedFile, _ := filepath.EvalSymlinks(configFile)
-		linkedFiles = append(linkedFiles, linkedFile)
-	}
-
 	cfg := Config{
 		DefaultTimeouts: TimeoutConfig{
 			ReadTimeout:  "5s",
@@ -318,9 +314,8 @@ func GetConfig(configFiles []string) (*Config, error) {
 		watcher:     watcher,
 		tracer:      otel.GetTracerProvider().Tracer(instrumentationName),
 		configFiles: configFiles,
-		linkedFiles: linkedFiles,
 	}
-	err = cfg.Load()
+	err := cfg.Load()
 
 	return &cfg, err
 }

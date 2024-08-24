@@ -1,8 +1,8 @@
 package main
 
 import (
-	"github.com/movio/bramble"
-	_ "github.com/movio/bramble/plugins"
+	"github.com/SundaeSwap-finance/bramble"
+	_ "github.com/SundaeSwap-finance/bramble/plugins"
 )
 
 func main() {

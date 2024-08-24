@@ -14,16 +14,16 @@ RUN --mount=type=cache,target=/go/pkg/mod go mod download
 
 COPY . /workspace/
 
-RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build go build -ldflags="-X 'github.com/movio/bramble.Version=$VERSION'" -o bramble ./cmd/bramble
+RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build go build -ldflags="-X 'github.com/SundaeSwap-finance/bramble.Version=$VERSION'" -o bramble ./cmd/bramble
 
 FROM gcr.io/distroless/static
 
 ARG VERSION=SNAPSHOT
 
 LABEL org.opencontainers.image.title="Bramble"
-LABEL org.opencontainers.image.description="A federated GraphQL API gateway"
+LABEL org.opencontainers.image.description="A (forked) federated GraphQL API gateway"
 LABEL org.opencontainers.image.version="${VERSION}"
-LABEL org.opencontainers.image.source="https://github.com/movio/bramble"
+LABEL org.opencontainers.image.source="https://github.com/SundaeSwap-finance/bramble"
 LABEL org.opencontainers.image.documentation="https://movio.github.io/bramble/"
 
 COPY --from=builder /workspace/bramble .

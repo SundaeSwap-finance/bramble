@@ -28,7 +28,9 @@ func Main() {
 	if err != nil {
 		log.WithError(err).Fatal("failed to get config")
 	}
-	go cfg.Watch()
+	if err := cfg.Watch(); err != nil {
+		log.WithError(err).Fatal("failed to start watching")
+	}
 
 	shutdown, err := InitTelemetry(ctx, cfg.Telemetry)
 	if err != nil {
@@ -52,7 +54,7 @@ func Main() {
 	gtw := NewGateway(cfg.executableSchema, cfg.plugins)
 	RegisterMetrics()
 
-	go gtw.UpdateSchemas(cfg.PollIntervalDuration)
+	go gtw.UpdateSchemas(cfg.PollIntervalDuration, cfg.PollIntervalDuration)
 
 	ctx, cancel := signal.NotifyContext(ctx, os.Interrupt)
 	defer cancel()

@@ -7,9 +7,9 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/SundaeSwap-finance/bramble"
 	"github.com/graph-gophers/graphql-go"
 	"github.com/graph-gophers/graphql-go/relay"
-	"github.com/movio/bramble"
 	"github.com/vektah/gqlparser/v2/ast"
 )
 
@@ -254,7 +254,11 @@ func (r *metaResolver) brambleType(name string, def *ast.Definition) brambleType
 		var svcName string
 		if svcURL, err := r.executableSchema.Locations.URLFor(def.Name, "", f.Name); err == nil {
 			svc := r.executableSchema.Services[svcURL]
-			svcName = svc.Name
+			if svc == nil {
+				svcName = "multiple"
+			} else {
+				svcName = svc.Name
+			}
 		}
 		var args []brambleArg
 		for _, a := range f.Arguments {
@@ -333,7 +337,10 @@ func (r *metaResolver) getFields(schema *ast.Schema) []brambleField {
 		for _, f := range def.Fields {
 			var svcName string
 			if svcURL, err := r.executableSchema.Locations.URLFor(def.Name, "", f.Name); err == nil {
-				if svc := r.executableSchema.Services[svcURL]; svc != nil {
+				if svc := r.executableSchema.Services[svcURL]; svc == nil {
+					// type is shared across multiple services as a utility type
+					svcName = "multiple"
+				} else {
 					svcName = svc.Name
 				}
 			}

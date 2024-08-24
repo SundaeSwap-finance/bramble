@@ -2,6 +2,7 @@ package plugins
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"sort"
@@ -12,7 +13,7 @@ import (
 	"github.com/vektah/gqlparser/v2/ast"
 	"github.com/vektah/gqlparser/v2/formatter"
 
-	"github.com/movio/bramble"
+	"github.com/SundaeSwap-finance/bramble"
 )
 
 func init() {
@@ -24,10 +25,27 @@ type AdminUIPlugin struct {
 	bramble.BasePlugin
 	executableSchema *bramble.ExecutableSchema
 	template         *template.Template
+	config           AdminUIPluginConfig
+}
+
+type AdminUIPluginConfig struct {
+	Path *string `json:"path,omitempty"`
 }
 
 func (p *AdminUIPlugin) ID() string {
 	return "admin-ui"
+}
+
+func (p *AdminUIPlugin) Configure(cfg *bramble.Config, data json.RawMessage) error {
+	if data == nil {
+		return nil
+	}
+	err := json.Unmarshal(data, &p.config)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (p *AdminUIPlugin) Init(s *bramble.ExecutableSchema) {
@@ -42,7 +60,11 @@ func (p *AdminUIPlugin) Init(s *bramble.ExecutableSchema) {
 }
 
 func (p *AdminUIPlugin) SetupPrivateMux(mux *http.ServeMux) {
-	mux.HandleFunc("/admin", p.handler)
+	path := "/admin"
+	if p.config.Path != nil {
+		path = *p.config.Path
+	}
+	mux.HandleFunc(path, p.handler)
 }
 
 type services []service
@@ -60,11 +82,12 @@ func (s services) Swap(i, j int) {
 }
 
 type service struct {
-	Name       string
-	Version    string
-	ServiceURL string
-	Schema     string
-	Status     string
+	Name           string
+	Version        string
+	ServiceURL     string
+	Schema         string
+	Status         string
+	UpdateDuration string
 }
 
 type templateVariables struct {
@@ -88,11 +111,12 @@ func (p *AdminUIPlugin) handler(w http.ResponseWriter, r *http.Request) {
 
 	for _, s := range p.executableSchema.Services {
 		vars.Services = append(vars.Services, service{
-			Name:       s.Name,
-			Version:    s.Version,
-			ServiceURL: s.ServiceURL,
-			Schema:     s.SchemaSource,
-			Status:     s.Status,
+			Name:           s.Name,
+			Version:        s.Version,
+			ServiceURL:     s.ServiceURL,
+			Schema:         s.SchemaSource,
+			Status:         s.Status,
+			UpdateDuration: s.UpdateDuration.String(),
 		})
 	}
 
@@ -290,6 +314,7 @@ const htmlTemplate = `
                 <div class="version">{{.Version}}</div>
                 <div class="url">{{.ServiceURL}}</div>
                 <div class="status">{{.Status}}</div>
+                <div class="update-timing">Last schema update took {{.UpdateDuration}}</div>
             </div>
             <label class="collapsible">
                 <input type="checkbox" />

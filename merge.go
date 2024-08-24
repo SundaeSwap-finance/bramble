@@ -116,6 +116,37 @@ func buildBoundaryFieldsMap(services ...*Service) BoundaryFieldsMap {
 	return result
 }
 
+func areIdentical(a, b *ast.Definition) bool {
+	if a.Name != b.Name {
+		return false
+	}
+
+	if a.Kind != b.Kind {
+		return false
+	}
+
+	if len(a.Fields) != len(b.Fields) {
+		return false
+	}
+
+	for _, f := range a.Fields {
+		hasField := false
+		for _, g := range b.Fields {
+			if f.Name == g.Name {
+				hasField = true
+				if f.Type.String() != g.Type.String() {
+					return false
+				}
+				break
+			}
+		}
+		if !hasField {
+			return false
+		}
+	}
+	return true
+}
+
 func mergeTypes(a, b map[string]*ast.Definition) (map[string]*ast.Definition, error) {
 	result := make(map[string]*ast.Definition)
 	for k, v := range a {
@@ -154,6 +185,12 @@ func mergeTypes(a, b map[string]*ast.Definition) (map[string]*ast.Definition, er
 
 		if newVB.Kind == ast.Scalar {
 			result[k] = &newVB
+			continue
+		}
+
+		// Allow redeclaring types across services, so long as they're identical
+		if va.Name != queryObjectName && areIdentical(va, &newVB) {
+			va.Position.Src.Name = "multiple"
 			continue
 		}
 

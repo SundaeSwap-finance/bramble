@@ -3,6 +3,7 @@ package bramble
 import (
 	"context"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/99designs/gqlgen/graphql/handler"
@@ -25,6 +26,10 @@ func NewGateway(executableSchema *ExecutableSchema, plugins []Plugin) *Gateway {
 		ExecutableSchema: executableSchema,
 		plugins:          plugins,
 	}
+}
+
+func NewGatewayFromConfig(cfg *Config) *Gateway {
+	return NewGateway(cfg.executableSchema, cfg.plugins)
 }
 
 // UpdateSchemas periodically updates the execute schema
@@ -58,7 +63,29 @@ func (g *Gateway) Router(cfg *Config) http.Handler {
 		gatewayHandler.Use(extension.Introspection{})
 	}
 
-	mux.Handle("/query", applyMiddleware(otelhttp.NewHandler(gatewayHandler, "/query"), debugMiddleware))
+	// We *should* be able to assume that this is set to a default, but no harm in being explicit
+	path := "/query"
+	if cfg.GraphqlPath != nil {
+		path = *cfg.GraphqlPath
+	}
+	path = strings.TrimSuffix(path, "/")
+	mux.Handle(path,
+		applyMiddleware(
+			otelhttp.NewHandler(
+				gatewayHandler, path,
+			),
+			debugMiddleware,
+		),
+	)
+	// Also map with a / so we can query with the operation name
+	mux.Handle(path+"/",
+		applyMiddleware(
+			otelhttp.NewHandler(
+				gatewayHandler, path+"/",
+			),
+			debugMiddleware,
+		),
+	)
 
 	for _, plugin := range g.plugins {
 		plugin.SetupPublicMux(mux)

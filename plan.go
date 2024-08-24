@@ -387,13 +387,25 @@ func (m FieldURLMap) URLFor(parent, parentLocation, field string) (string, error
 	if !exists {
 		return "", fmt.Errorf("could not find location for %q", key)
 	}
+	if value == "" {
+		// The entry exists, meaning we recognize the field
+		// but is empty string, meaning there's not a canonical location
+		// so inherit the parent location to query from the service we're querying from
+		return parentLocation, nil
+	}
 	return value, nil
 }
 
 // RegisterURL registers the location for the given field
 func (m FieldURLMap) RegisterURL(parent string, field string, location string) {
 	key := m.keyFor(parent, field)
-	m[key] = location
+	if _, existing := m[key]; existing {
+		// A given type/field combination exists in multiple locations, so set location to empty string
+		// When executing the plan, this will cause it to inherit the parent location
+		m[key] = ""
+	} else {
+		m[key] = location
+	}
 }
 
 func (m FieldURLMap) keyFor(parent string, field string) string {

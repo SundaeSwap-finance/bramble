@@ -2,8 +2,8 @@
 
 ## Plugin interface
 
-Plugins must implement the [`Plugin`](https://pkg.go.dev/github.com/movio/bramble/bramble#Plugin) interface. Optionaly they can derive from
-the [`BasePlugin`](https://pkg.go.dev/github.com/movio/bramble/bramble#BasePlugin) implementation as to avoid redefining all methods.
+Plugins must implement the [`Plugin`](https://pkg.go.dev/github.com/SundaeSwap-finance/bramble/bramble#Plugin) interface. Optionaly they can derive from
+the [`BasePlugin`](https://pkg.go.dev/github.com/SundaeSwap-finance/bramble/bramble#BasePlugin) implementation as to avoid redefining all methods.
 
 ```go
 type MyPlugin struct {
@@ -36,8 +36,8 @@ To build Bramble with custom plugins simply create your own `main.go` with an an
 package main
 
 import (
-	"github.com/movio/bramble"
-	_ "github.com/movio/bramble/plugins"
+	"github.com/SundaeSwap-finance/bramble"
+	_ "github.com/SundaeSwap-finance/bramble/plugins"
 	_ "github.com/your/custom/package"
 )
 

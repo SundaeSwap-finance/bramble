@@ -14,7 +14,7 @@ type event struct {
 	name      string
 	timestamp time.Time
 	fields    EventFields
-	fieldLock sync.Mutex
+	fieldLock sync.RWMutex
 	writeLock sync.Once
 }
 
@@ -38,6 +38,12 @@ func (e *event) addField(name string, value interface{}) {
 	e.fieldLock.Lock()
 	e.fields[name] = value
 	e.fieldLock.Unlock()
+}
+
+func (e *event) getField(name string) interface{} {
+	e.fieldLock.RLock()
+	defer e.fieldLock.RUnlock()
+	return e.fields[name]
 }
 
 func (e *event) addFields(fields EventFields) {
@@ -68,6 +74,13 @@ func AddFields(ctx context.Context, fields EventFields) {
 	if e := getEvent(ctx); e != nil {
 		e.addFields(fields)
 	}
+}
+
+func GetField(ctx context.Context, name string) interface{} {
+	if e := getEvent(ctx); e != nil {
+		return e.getField(name)
+	}
+	return nil
 }
 
 func getEvent(ctx context.Context) *event {

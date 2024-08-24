@@ -2,10 +2,7 @@ module github.com/movio/bramble/examples/gqlgen-service
 
 go 1.22
 
-require (
-	github.com/99designs/gqlgen v0.17.44
-	github.com/go-faker/faker/v4 v4.0.0-beta.3
-)
+require github.com/99designs/gqlgen v0.17.44
 
 require (
 	github.com/agnivade/levenshtein v1.1.1 // indirect

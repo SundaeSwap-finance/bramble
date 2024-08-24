@@ -42,13 +42,18 @@ func (g *Gateway) UpdateSchemas(interval time.Duration) {
 func (g *Gateway) Router(cfg *Config) http.Handler {
 	mux := http.NewServeMux()
 
+	gatewayHandler := handler.New(g.ExecutableSchema)
+	for _, plugin := range g.plugins {
+		plugin.SetupGatewayHandler(gatewayHandler)
+	}
 	// Duplicated from `handler.NewDefaultServer` minus
 	// the websocket transport and persisted query extension
-	gatewayHandler := handler.New(g.ExecutableSchema)
 	gatewayHandler.AddTransport(transport.Options{})
 	gatewayHandler.AddTransport(transport.GET{})
 	gatewayHandler.AddTransport(transport.POST{})
-	gatewayHandler.AddTransport(transport.MultipartForm{})
+	gatewayHandler.AddTransport(transport.MultipartForm{
+		MaxUploadSize: cfg.MaxFileUploadSize,
+	})
 	if !cfg.DisableIntrospection {
 		gatewayHandler.Use(extension.Introspection{})
 	}

@@ -4,11 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/99designs/gqlgen/graphql"
 	log "github.com/sirupsen/logrus"
+	"github.com/vektah/gqlparser/v2"
 	"github.com/vektah/gqlparser/v2/ast"
 	"github.com/vektah/gqlparser/v2/gqlerror"
 	"go.opentelemetry.io/otel"
@@ -17,6 +19,7 @@ import (
 	semconv "go.opentelemetry.io/otel/semconv/v1.17.0"
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/sync/errgroup"
+	"golang.org/x/sync/singleflight"
 )
 
 func NewExecutableSchema(plugins []Plugin, maxRequestsPerQuery int64, client *GraphQLClient, services ...*Service) *ExecutableSchema {
@@ -48,11 +51,13 @@ type ExecutableSchema struct {
 	Services            map[string]*Service
 	BoundaryQueries     BoundaryFieldsMap
 	GraphqlClient       *GraphQLClient
+	SchemaCache         SchemaCache
 	MaxRequestsPerQuery int64
 
-	tracer  trace.Tracer
-	mutex   sync.RWMutex
-	plugins []Plugin
+	tracer       trace.Tracer
+	mutex        sync.RWMutex
+	plugins      []Plugin
+	refreshGroup singleflight.Group
 }
 
 // UpdateServiceList replaces the list of services with the provided one and
@@ -157,9 +162,104 @@ func (s *ExecutableSchema) UpdateSchema(ctx context.Context, forceRebuild bool) 
 		s.MergedSchema = schema
 		s.BoundaryQueries = boundaryQueries
 		s.mutex.Unlock()
+
+		if s.SchemaCache != nil {
+			go s.saveToCache(context.Background())
+		}
 	}
 
 	return nil
+}
+
+// RefreshSchema performs a full live introspection and cache save, guarded by
+// singleflight to deduplicate concurrent refresh requests.
+func (s *ExecutableSchema) RefreshSchema(ctx context.Context) error {
+	_, err, _ := s.refreshGroup.Do("refresh", func() (interface{}, error) {
+		return nil, s.UpdateSchema(ctx, true)
+	})
+	return err
+}
+
+func (s *ExecutableSchema) loadFromCache(ctx context.Context) error {
+	if s.SchemaCache == nil {
+		return fmt.Errorf("no schema cache configured")
+	}
+
+	cached, err := s.SchemaCache.Load(ctx)
+	if err != nil {
+		return fmt.Errorf("loading schema cache: %w", err)
+	}
+	if len(cached) == 0 {
+		return fmt.Errorf("schema cache is empty")
+	}
+
+	var services []*Service
+	var schemas []*ast.Schema
+
+	for url, svc := range s.Services {
+		sdl, ok := cached[url]
+		if !ok {
+			return fmt.Errorf("service %s not found in cache", url)
+		}
+
+		schema, err := gqlparser.LoadSchema(&ast.Source{Name: url, Input: sdl})
+		if err != nil {
+			return fmt.Errorf("parsing cached schema for %s: %w", url, err)
+		}
+
+		if err := ValidateSchema(schema); err != nil {
+			return fmt.Errorf("validating cached schema for %s: %w", url, err)
+		}
+
+		svc.SchemaSource = sdl
+		svc.Schema = schema
+		svc.Status = "OK (cached)"
+
+		services = append(services, svc)
+		schemas = append(schemas, schema)
+	}
+
+	merged, err := MergeSchemas(schemas...)
+	if err != nil {
+		return fmt.Errorf("merging cached schemas: %w", err)
+	}
+
+	boundaryQueries := buildBoundaryFieldsMap(services...)
+	locations := buildFieldURLMap(services...)
+	isBoundary := buildIsBoundaryMap(services...)
+
+	s.mutex.Lock()
+	s.Locations = locations
+	s.IsBoundary = isBoundary
+	s.MergedSchema = merged
+	s.BoundaryQueries = boundaryQueries
+	s.mutex.Unlock()
+
+	log.Info("loaded schemas from cache")
+	return nil
+}
+
+func (s *ExecutableSchema) saveToCache(ctx context.Context) {
+	if s.SchemaCache == nil {
+		return
+	}
+
+	schemas := make(map[string]string)
+	for url, svc := range s.Services {
+		if svc.SchemaSource != "" {
+			schemas[url] = svc.SchemaSource
+		}
+	}
+
+	if len(schemas) == 0 {
+		return
+	}
+
+	if err := s.SchemaCache.Save(ctx, schemas); err != nil {
+		log.WithError(err).Error("failed to save schemas to cache")
+	} else {
+		log.Info("saved schemas to cache")
+	}
 }
 
 // Exec returns the query execution handler
@@ -222,6 +322,9 @@ func (s *ExecutableSchema) ExecuteQuery(ctx context.Context) *graphql.Response {
 		Services:   s.Services,
 	})
 	if err != nil {
+		if strings.Contains(err.Error(), "could not find location") && s.SchemaCache != nil {
+			go s.RefreshSchema(context.Background())
+		}
 		traceErr(err)
 		return s.interceptResponse(ctx, operation.Name, operationCtx.RawQuery, variables, graphql.ErrorResponse(ctx, err.Error()))
 	}

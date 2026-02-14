@@ -62,6 +62,10 @@ type Config struct {
 	// HTTP client to customize for downstream services query
 	QueryHTTPClient *http.Client
 
+	// SchemaCache, when set, enables persistent caching of federated service
+	// schemas. Set this before calling Init().
+	SchemaCache SchemaCache
+
 	plugins          []Plugin
 	executableSchema *ExecutableSchema
 	watcher          *fsnotify.Watcher
@@ -383,9 +387,22 @@ func (c *Config) Init() error {
 	}
 	queryClient := NewClientWithPlugins(c.plugins, queryClientOptions...)
 	es := NewExecutableSchema(c.plugins, c.MaxRequestsPerQuery, queryClient, services...)
-	err = es.UpdateSchema(context.Background(), true)
-	if err != nil {
-		return err
+	es.SchemaCache = c.SchemaCache
+
+	cacheLoaded := false
+	if c.SchemaCache != nil {
+		if err := es.loadFromCache(context.Background()); err != nil {
+			log.WithError(err).Warn("failed to load schemas from cache, falling back to live introspection")
+		} else {
+			cacheLoaded = true
+		}
+	}
+
+	if !cacheLoaded {
+		err = es.UpdateSchema(context.Background(), true)
+		if err != nil {
+			return err
+		}
 	}
 
 	c.executableSchema = es
@@ -396,6 +413,14 @@ func (c *Config) Init() error {
 		pluginsNames = append(pluginsNames, plugin.ID())
 	}
 	log.Infof("enabled plugins: %v", pluginsNames)
+
+	if cacheLoaded {
+		go func() {
+			if err := es.UpdateSchema(context.Background(), true); err != nil {
+				log.WithError(err).Error("background schema refresh failed")
+			}
+		}()
+	}
 
 	return nil
 }

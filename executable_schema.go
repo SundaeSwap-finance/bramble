@@ -117,9 +117,17 @@ func (s *ExecutableSchema) UpdateSchema(ctx context.Context, forceRebuild bool) 
 			if err != nil {
 				promServiceUpdateErrorCounter.WithLabelValues(s.ServiceURL).Inc()
 				promServiceUpdateErrorGauge.WithLabelValues(s.ServiceURL).Set(1)
-				invalidSchema, forceRebuild = true, true
+				invalidSchema = true
 				logger.WithError(err).Error("unable to update service")
-				// Ignore this service in this update
+
+				// If the service has a previous valid schema, include it
+				// in the merge so we don't lose its fields.
+				mutex.Lock()
+				defer mutex.Unlock()
+				if s.Schema != nil {
+					services = append(services, s)
+					schemas = append(schemas, s.Schema)
+				}
 				return nil
 			}
 			promServiceUpdateErrorGauge.WithLabelValues(s.ServiceURL).Set(0)

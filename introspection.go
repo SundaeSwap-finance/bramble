@@ -65,7 +65,6 @@ func (s *Service) Update(ctx context.Context) (bool, error) {
 
 	start := time.Now()
 	if err := s.client.Request(ctx, s.ServiceURL, req, &response); err != nil {
-		s.SchemaSource = ""
 		s.Status = "Unreachable"
 		return false, err
 	}

@@ -334,7 +334,7 @@ func (s *ExecutableSchema) ExecuteQuery(ctx context.Context) *graphql.Response {
 			go s.RefreshSchema(context.Background())
 		}
 		traceErr(err)
-		return s.interceptResponse(ctx, operation.Name, operationCtx.RawQuery, variables, graphql.ErrorResponse(ctx, err.Error()))
+		return s.interceptResponse(ctx, operation.Name, operationCtx.RawQuery, variables, graphql.ErrorResponse(ctx, "%s", err.Error()))
 	}
 
 	extensions := make(map[string]interface{})
@@ -446,7 +446,7 @@ func (s *ExecutableSchema) Schema() *ast.Schema {
 }
 
 // Complexity returns the query complexity (unimplemented)
-func (s *ExecutableSchema) Complexity(typeName, fieldName string, childComplexity int, args map[string]interface{}) (int, bool) {
+func (s *ExecutableSchema) Complexity(ctx context.Context, typeName, fieldName string, childComplexity int, args map[string]interface{}) (int, bool) {
 	// FIXME: TBD
 	return 0, false
 }

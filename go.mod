@@ -50,8 +50,6 @@ require (
 	go.opentelemetry.io/otel/trace v1.27.0
 )
 
-require github.com/movio/bramble v1.4.18
-
 require (
 	github.com/cenkalti/backoff/v4 v4.3.0 // indirect
 	github.com/go-logr/logr v1.4.1 // indirect

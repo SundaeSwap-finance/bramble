@@ -45,14 +45,15 @@ func NewExecutableSchema(plugins []Plugin, maxRequestsPerQuery int64, client *Gr
 
 // ExecutableSchema contains all the necessary information to execute queries
 type ExecutableSchema struct {
-	MergedSchema        *ast.Schema
-	Locations           FieldURLMap
-	IsBoundary          map[string]bool
-	Services            map[string]*Service
-	BoundaryQueries     BoundaryFieldsMap
-	GraphqlClient       *GraphQLClient
-	SchemaCache         SchemaCache
-	MaxRequestsPerQuery int64
+	MergedSchema          *ast.Schema
+	Locations             FieldURLMap
+	IsBoundary            map[string]bool
+	Services              map[string]*Service
+	BoundaryQueries       BoundaryFieldsMap
+	SubscriptionRegistry  *SubscriptionRegistry
+	GraphqlClient         *GraphQLClient
+	SchemaCache           SchemaCache
+	MaxRequestsPerQuery   int64
 
 	tracer       trace.Tracer
 	mutex        sync.RWMutex
@@ -164,11 +165,18 @@ func (s *ExecutableSchema) UpdateSchema(ctx context.Context, forceRebuild bool) 
 		locations := buildFieldURLMap(services...)
 		isBoundary := buildIsBoundaryMap(services...)
 
+		subscriptionRegistry, err := BuildSubscriptionRegistry(schema, isBoundary, s.Services, locations)
+		if err != nil {
+			invalidSchema = true
+			return fmt.Errorf("building subscription registry: %w", err)
+		}
+
 		s.mutex.Lock()
 		s.Locations = locations
 		s.IsBoundary = isBoundary
 		s.MergedSchema = schema
 		s.BoundaryQueries = boundaryQueries
+		s.SubscriptionRegistry = subscriptionRegistry
 		s.mutex.Unlock()
 
 		if s.SchemaCache != nil {
@@ -236,11 +244,17 @@ func (s *ExecutableSchema) loadFromCache(ctx context.Context) error {
 	locations := buildFieldURLMap(services...)
 	isBoundary := buildIsBoundaryMap(services...)
 
+	subscriptionRegistry, err := BuildSubscriptionRegistry(merged, isBoundary, s.Services, locations)
+	if err != nil {
+		return fmt.Errorf("building subscription registry from cache: %w", err)
+	}
+
 	s.mutex.Lock()
 	s.Locations = locations
 	s.IsBoundary = isBoundary
 	s.MergedSchema = merged
 	s.BoundaryQueries = boundaryQueries
+	s.SubscriptionRegistry = subscriptionRegistry
 	s.mutex.Unlock()
 
 	log.Info("loaded schemas from cache")
@@ -443,6 +457,13 @@ func (s *ExecutableSchema) interceptResponse(ctx context.Context, operationName,
 // Schema returns the merged schema
 func (s *ExecutableSchema) Schema() *ast.Schema {
 	return s.MergedSchema
+}
+
+// Subscriptions returns the subscription registry
+func (s *ExecutableSchema) Subscriptions() *SubscriptionRegistry {
+	s.mutex.RLock()
+	defer s.mutex.RUnlock()
+	return s.SubscriptionRegistry
 }
 
 // Complexity returns the query complexity (unimplemented)

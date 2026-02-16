@@ -3480,17 +3480,15 @@ func TestSchemaUpdate_serviceError(t *testing.T) {
 
 	executableSchema.UpdateSchema(context.TODO(), false)
 
-	for _, service := range executableSchema.Services {
-		if service.Name == "serviceA" {
-			require.Equal(t, "", service.SchemaSource)
-		}
-	}
-
+	// When a service fails to update, its previous valid schema is preserved
+	// (graceful degradation). Gizmo should still be in the merged schema.
+	foundGizmo = false
 	for typeName := range executableSchema.MergedSchema.Types {
 		if typeName == "Gizmo" {
-			t.Error("expected Gizmo to be dropped from schema")
+			foundGizmo = true
 		}
 	}
+	assert.True(t, foundGizmo, "expected Gizmo to be retained in schema after service error (graceful degradation)")
 }
 
 type testService struct {

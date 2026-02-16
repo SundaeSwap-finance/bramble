@@ -421,7 +421,7 @@ func cleanFields(fields ast.FieldList) ast.FieldList {
 
 func allowedDirective(name string) bool {
 	switch name {
-	case boundaryDirectiveName, namespaceDirectiveName, "skip", "include", "deprecated":
+	case boundaryDirectiveName, namespaceDirectiveName, topicDirectiveName, "skip", "include", "deprecated":
 		return true
 	default:
 		return false

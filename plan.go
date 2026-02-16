@@ -87,7 +87,7 @@ func Plan(ctx *PlanningContext) (*QueryPlan, error) {
 	case ast.Mutation:
 		parentType = mutationObjectName
 	default:
-		return nil, fmt.Errorf("not implemented")
+		return nil, fmt.Errorf("subscription operations are not supported over HTTP; use the WebSocket endpoint")
 	}
 
 	steps, err := createSteps(ctx, nil, parentType, "", ctx.Operation.SelectionSet)

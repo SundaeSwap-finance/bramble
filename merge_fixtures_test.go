@@ -56,8 +56,9 @@ func (f MergeTestFixture) CheckError(t *testing.T) {
 		schemas = append(schemas, loadSchema(f.Input2))
 	}
 	_, err := MergeSchemas(schemas...)
-	assert.Error(t, err)
-	assert.Equal(t, f.Error, err.Error())
+	if assert.Error(t, err) {
+		assert.Equal(t, f.Error, err.Error())
+	}
 }
 
 func (f BuildFieldURLMapFixture) Check(t *testing.T) {

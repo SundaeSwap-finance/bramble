@@ -125,6 +125,24 @@ func areIdentical(a, b *ast.Definition) bool {
 		return false
 	}
 
+	// Compare union member types
+	if len(a.Types) != len(b.Types) {
+		return false
+	}
+	for _, at := range a.Types {
+		found := false
+		for _, bt := range b.Types {
+			if at == bt {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return false
+		}
+	}
+
+	// Compare fields (for objects, input objects, interfaces)
 	if len(a.Fields) != len(b.Fields) {
 		return false
 	}
@@ -188,8 +206,10 @@ func mergeTypes(a, b map[string]*ast.Definition) (map[string]*ast.Definition, er
 			continue
 		}
 
-		// Allow redeclaring types across services, so long as they're identical
-		if va.Name != queryObjectName && areIdentical(va, &newVB) {
+		// Allow redeclaring types across services, so long as they're identical.
+		// Exclude Query, Mutation, and Subscription since those are namespace
+		// objects that need field-level conflict detection.
+		if va.Name != queryObjectName && va.Name != mutationObjectName && va.Name != subscriptionObjectName && areIdentical(va, &newVB) {
 			va.Position.Src.Name = "multiple"
 			continue
 		}

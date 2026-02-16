@@ -105,7 +105,8 @@ func TestMergeTwoSchemasNoBoundaryTypes(t *testing.T) {
 	fixture.CheckSuccess(t)
 }
 
-func TestMergeTwoSchemasWithCollidingInterface(t *testing.T) {
+func TestMergeTwoSchemasWithIdenticalInterface(t *testing.T) {
+	// Identical interfaces across services are allowed (they are deduplicated)
 	fixture := MergeTestFixture{
 		Input1: `
 			interface Named {
@@ -129,6 +130,61 @@ func TestMergeTwoSchemasWithCollidingInterface(t *testing.T) {
 			type Gimmick implements Named {
 				name: String!
 				bar: Float!
+			}
+
+			type Query {
+				gimmick(id: ID!): Gimmick!
+			}
+		`,
+		Expected: `
+			interface Named {
+				name: String!
+			}
+
+			type Gizmo implements Named {
+				name: String!
+				foo: Float!
+			}
+
+			type Gimmick implements Named {
+				name: String!
+				bar: Float!
+			}
+
+			type Query {
+				gimmick(id: ID!): Gimmick!
+				gizmo(id: ID!): Gizmo!
+			}
+		`,
+	}
+	fixture.CheckSuccess(t)
+}
+
+func TestMergeTwoSchemasWithConflictingInterface(t *testing.T) {
+	// Different interfaces with the same name should error
+	fixture := MergeTestFixture{
+		Input1: `
+			interface Named {
+				name: String!
+			}
+
+			type Gizmo implements Named {
+				name: String!
+			}
+
+			type Query {
+				gizmo(id: ID!): Gizmo!
+			}
+		`,
+		Input2: `
+			interface Named {
+				name: String!
+				title: String!
+			}
+
+			type Gimmick implements Named {
+				name: String!
+				title: String!
 			}
 
 			type Query {

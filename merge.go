@@ -215,7 +215,7 @@ func mergeTypes(a, b map[string]*ast.Definition) (map[string]*ast.Definition, er
 		}
 
 		if !hasFederationDirectives(&newVB) || !hasFederationDirectives(va) {
-			if k != queryObjectName && k != mutationObjectName {
+			if k != queryObjectName && k != mutationObjectName && k != subscriptionObjectName {
 				if newVB.Kind == ast.Interface {
 					return nil, fmt.Errorf("conflicting interface: %s (interfaces may not span multiple services)", k)
 				}

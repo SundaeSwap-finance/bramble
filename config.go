@@ -66,6 +66,10 @@ type Config struct {
 	// schemas. Set this before calling Init().
 	SchemaCache SchemaCache
 
+	// IntrinsicSDL defines types and fields owned by the gateway itself.
+	// Set this before calling Init() so the initial schema merge includes them.
+	IntrinsicSDL string
+
 	plugins          []Plugin
 	executableSchema *ExecutableSchema
 	watcher          *fsnotify.Watcher
@@ -388,6 +392,7 @@ func (c *Config) Init() error {
 	queryClient := NewClientWithPlugins(c.plugins, queryClientOptions...)
 	es := NewExecutableSchema(c.plugins, c.MaxRequestsPerQuery, queryClient, services...)
 	es.SchemaCache = c.SchemaCache
+	es.IntrinsicSDL = c.IntrinsicSDL
 
 	cacheLoaded := false
 	if c.SchemaCache != nil {

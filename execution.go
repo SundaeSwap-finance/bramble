@@ -393,6 +393,15 @@ func trimInsertionPointForNestedBoundaryStep(data []interface{}, childInsertionP
 	return nil, fmt.Errorf("could not find any insertion points inside boundary data")
 }
 
+// IntrinsicFieldResolver resolves a single field on an intrinsic composite type.
+type IntrinsicFieldResolver func(args map[string]interface{}) (interface{}, error)
+
+// IntrinsicObject is a composite value returned by an intrinsic resolver.
+// Sub-fields are resolved by calling the corresponding IntrinsicFieldResolver.
+type IntrinsicObject struct {
+	Fields map[string]IntrinsicFieldResolver
+}
+
 func (q *queryExecution) executeIntrinsicStep(step *QueryPlanStep) (*executionResult, error) {
 	data := make(map[string]interface{})
 	for _, field := range selectionSetToFields(step.SelectionSet) {
@@ -415,7 +424,17 @@ func (q *queryExecution) executeIntrinsicStep(step *QueryPlanStep) (*executionRe
 		if err != nil {
 			return nil, fmt.Errorf("intrinsic resolver %s: %w", key, err)
 		}
-		data[field.Alias] = result
+
+		// If the resolver returns an IntrinsicObject, resolve its sub-fields.
+		if obj, ok := result.(*IntrinsicObject); ok {
+			resolved, err := resolveIntrinsicObject(obj, field.SelectionSet)
+			if err != nil {
+				return nil, fmt.Errorf("intrinsic resolver %s: %w", key, err)
+			}
+			data[field.Alias] = resolved
+		} else {
+			data[field.Alias] = result
+		}
 	}
 
 	return &executionResult{
@@ -423,6 +442,38 @@ func (q *queryExecution) executeIntrinsicStep(step *QueryPlanStep) (*executionRe
 		InsertionPoint: []string{},
 		Data:           data,
 	}, nil
+}
+
+func resolveIntrinsicObject(obj *IntrinsicObject, selectionSet ast.SelectionSet) (map[string]interface{}, error) {
+	data := make(map[string]interface{})
+	for _, field := range selectionSetToFields(selectionSet) {
+		resolver, ok := obj.Fields[field.Name]
+		if !ok {
+			return nil, fmt.Errorf("no field resolver for %q on intrinsic object", field.Name)
+		}
+		args := make(map[string]interface{})
+		for _, arg := range field.Arguments {
+			val, err := arg.Value.Value(nil)
+			if err == nil {
+				args[arg.Name] = val
+			}
+		}
+		result, err := resolver(args)
+		if err != nil {
+			return nil, fmt.Errorf("field %q: %w", field.Name, err)
+		}
+		// Support nested IntrinsicObject
+		if inner, ok := result.(*IntrinsicObject); ok {
+			resolved, err := resolveIntrinsicObject(inner, field.SelectionSet)
+			if err != nil {
+				return nil, err
+			}
+			data[field.Alias] = resolved
+		} else {
+			data[field.Alias] = result
+		}
+	}
+	return data, nil
 }
 
 func executeBrambleStep(queryPlanStep *QueryPlanStep) (*executionResult, error) {

@@ -312,6 +312,10 @@ func routeSelectionSet(ctx *PlanningContext, parentType string, parentLocation s
 		if ss := filterSelectionSetByLoc(ctx, input, internalServiceName, parentType); len(ss) > 0 {
 			result[internalServiceName] = ss
 		}
+		// filter fields resolved by intrinsic resolvers
+		if ss := filterSelectionSetByLoc(ctx, input, intrinsicServiceName, parentType); len(ss) > 0 {
+			result[intrinsicServiceName] = ss
+		}
 
 		return result, nil
 	}

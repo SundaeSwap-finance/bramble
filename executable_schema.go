@@ -43,6 +43,9 @@ func NewExecutableSchema(plugins []Plugin, maxRequestsPerQuery int64, client *Gr
 	}
 }
 
+// IntrinsicResolver resolves a gateway-owned field locally.
+type IntrinsicResolver func(ctx context.Context, args map[string]interface{}) (interface{}, error)
+
 // ExecutableSchema contains all the necessary information to execute queries
 type ExecutableSchema struct {
 	MergedSchema          *ast.Schema
@@ -54,6 +57,12 @@ type ExecutableSchema struct {
 	GraphqlClient         *GraphQLClient
 	SchemaCache           SchemaCache
 	MaxRequestsPerQuery   int64
+
+	// IntrinsicSDL defines types and fields owned by the gateway itself (not
+	// federated from any service). These are merged into the schema for
+	// introspection and can be resolved locally via IntrinsicResolvers.
+	IntrinsicSDL       string
+	IntrinsicResolvers map[string]IntrinsicResolver // key: "Query.fieldName"
 
 	tracer       trace.Tracer
 	mutex        sync.RWMutex
@@ -155,6 +164,15 @@ func (s *ExecutableSchema) UpdateSchema(ctx context.Context, forceRebuild bool) 
 
 	if len(updatedServices) > 0 || forceRebuild {
 		log.Info("rebuilding merged schema")
+
+		if s.IntrinsicSDL != "" {
+			intrinsicSchema, err := gqlparser.LoadSchema(&ast.Source{Name: intrinsicServiceName, Input: s.IntrinsicSDL})
+			if err != nil {
+				return fmt.Errorf("parsing intrinsic schema: %w", err)
+			}
+			schemas = append(schemas, intrinsicSchema)
+		}
+
 		schema, err := MergeSchemas(schemas...)
 		if err != nil {
 			invalidSchema = true
@@ -164,6 +182,8 @@ func (s *ExecutableSchema) UpdateSchema(ctx context.Context, forceRebuild bool) 
 		boundaryQueries := buildBoundaryFieldsMap(services...)
 		locations := buildFieldURLMap(services...)
 		isBoundary := buildIsBoundaryMap(services...)
+
+		s.registerIntrinsicLocations(schema, locations)
 
 		subscriptionRegistry, err := BuildSubscriptionRegistry(schema, isBoundary, s.Services, locations)
 		if err != nil {
@@ -235,6 +255,14 @@ func (s *ExecutableSchema) loadFromCache(ctx context.Context) error {
 		schemas = append(schemas, schema)
 	}
 
+	if s.IntrinsicSDL != "" {
+		intrinsicSchema, err := gqlparser.LoadSchema(&ast.Source{Name: intrinsicServiceName, Input: s.IntrinsicSDL})
+		if err != nil {
+			return fmt.Errorf("parsing intrinsic schema: %w", err)
+		}
+		schemas = append(schemas, intrinsicSchema)
+	}
+
 	merged, err := MergeSchemas(schemas...)
 	if err != nil {
 		return fmt.Errorf("merging cached schemas: %w", err)
@@ -243,6 +271,8 @@ func (s *ExecutableSchema) loadFromCache(ctx context.Context) error {
 	boundaryQueries := buildBoundaryFieldsMap(services...)
 	locations := buildFieldURLMap(services...)
 	isBoundary := buildIsBoundaryMap(services...)
+
+	s.registerIntrinsicLocations(merged, locations)
 
 	subscriptionRegistry, err := BuildSubscriptionRegistry(merged, isBoundary, s.Services, locations)
 	if err != nil {
@@ -374,7 +404,7 @@ func (s *ExecutableSchema) ExecuteQuery(ctx context.Context) *graphql.Response {
 
 	executionStart := time.Now()
 
-	qe := newQueryExecution(ctx, operationCtx.OperationName, s.GraphqlClient, filteredSchema, s.BoundaryQueries, int32(s.MaxRequestsPerQuery))
+	qe := newQueryExecution(ctx, operationCtx.OperationName, s.GraphqlClient, filteredSchema, s.BoundaryQueries, int32(s.MaxRequestsPerQuery), s.IntrinsicResolvers)
 
 	results, executeErrs := qe.Execute(plan)
 	if len(executeErrs) > 0 {
@@ -464,6 +494,39 @@ func (s *ExecutableSchema) Subscriptions() *SubscriptionRegistry {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
 	return s.SubscriptionRegistry
+}
+
+// registerIntrinsicLocations registers intrinsic Query and Subscription fields
+// in the field URL map so the planner knows about them.
+func (s *ExecutableSchema) registerIntrinsicLocations(schema *ast.Schema, locations FieldURLMap) {
+	if s.IntrinsicSDL == "" {
+		return
+	}
+	if schema.Query != nil {
+		for _, field := range schema.Query.Fields {
+			if isGraphQLBuiltinName(field.Name) {
+				continue
+			}
+			key := fmt.Sprintf("Query.%s", field.Name)
+			if s.IntrinsicResolvers != nil {
+				if _, ok := s.IntrinsicResolvers[key]; ok {
+					locations.RegisterURL(queryObjectName, field.Name, intrinsicServiceName)
+				}
+			}
+		}
+	}
+	if schema.Subscription != nil {
+		for _, field := range schema.Subscription.Fields {
+			if isGraphQLBuiltinName(field.Name) {
+				continue
+			}
+			// Subscription fields don't need execution — they're only for introspection.
+			// Register them so the SubscriptionRegistry can find them.
+			if _, exists := locations[locations.keyFor(subscriptionObjectName, field.Name)]; !exists {
+				locations.RegisterURL(subscriptionObjectName, field.Name, intrinsicServiceName)
+			}
+		}
+	}
 }
 
 // Complexity returns the query complexity (unimplemented)

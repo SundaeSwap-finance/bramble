@@ -21,7 +21,8 @@ const (
 	mutationObjectName     = "Mutation"
 	subscriptionObjectName = "Subscription"
 
-	internalServiceName = "__bramble"
+	internalServiceName  = "__bramble"
+	intrinsicServiceName = "__intrinsic__"
 )
 
 func isGraphQLBuiltinName(s string) bool {

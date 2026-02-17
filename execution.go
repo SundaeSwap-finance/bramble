@@ -25,29 +25,31 @@ type executionResult struct {
 }
 
 type queryExecution struct {
-	ctx            context.Context
-	operationName  string
-	schema         *ast.Schema
-	requestCount   int32
-	maxRequest     int32
-	graphqlClient  *GraphQLClient
-	boundaryFields BoundaryFieldsMap
+	ctx                context.Context
+	operationName      string
+	schema             *ast.Schema
+	requestCount       int32
+	maxRequest         int32
+	graphqlClient      *GraphQLClient
+	boundaryFields     BoundaryFieldsMap
+	intrinsicResolvers map[string]IntrinsicResolver
 
 	group   *errgroup.Group
 	results chan executionResult
 }
 
-func newQueryExecution(ctx context.Context, operationName string, client *GraphQLClient, schema *ast.Schema, boundaryFields BoundaryFieldsMap, maxRequest int32) *queryExecution {
+func newQueryExecution(ctx context.Context, operationName string, client *GraphQLClient, schema *ast.Schema, boundaryFields BoundaryFieldsMap, maxRequest int32, intrinsicResolvers map[string]IntrinsicResolver) *queryExecution {
 	group, ctx := errgroup.WithContext(ctx)
 	return &queryExecution{
-		ctx:            ctx,
-		operationName:  operationName,
-		schema:         schema,
-		graphqlClient:  client,
-		boundaryFields: boundaryFields,
-		maxRequest:     maxRequest,
-		group:          group,
-		results:        make(chan executionResult),
+		ctx:                ctx,
+		operationName:      operationName,
+		schema:             schema,
+		graphqlClient:      client,
+		boundaryFields:     boundaryFields,
+		maxRequest:         maxRequest,
+		intrinsicResolvers: intrinsicResolvers,
+		group:              group,
+		results:            make(chan executionResult),
 	}
 }
 
@@ -65,6 +67,20 @@ func (q *queryExecution) Execute(queryPlan *QueryPlan) ([]executionResult, gqler
 			step.executionResult = &executionStepResult{
 				executed:  true,
 				error:     err,
+				timeTaken: time.Since(reqStart),
+			}
+			results = append(results, *r)
+			continue
+		}
+
+		if step.ServiceURL == intrinsicServiceName {
+			reqStart := time.Now()
+			r, err := q.executeIntrinsicStep(step)
+			if err != nil {
+				return nil, q.createGQLErrors(step, err)
+			}
+			step.executionResult = &executionStepResult{
+				executed:  true,
 				timeTaken: time.Since(reqStart),
 			}
 			results = append(results, *r)
@@ -375,6 +391,38 @@ func trimInsertionPointForNestedBoundaryStep(data []interface{}, childInsertionP
 		}
 	}
 	return nil, fmt.Errorf("could not find any insertion points inside boundary data")
+}
+
+func (q *queryExecution) executeIntrinsicStep(step *QueryPlanStep) (*executionResult, error) {
+	data := make(map[string]interface{})
+	for _, field := range selectionSetToFields(step.SelectionSet) {
+		key := fmt.Sprintf("%s.%s", step.ParentType, field.Name)
+		resolver, ok := q.intrinsicResolvers[key]
+		if !ok {
+			return nil, fmt.Errorf("no intrinsic resolver for %s", key)
+		}
+
+		// Extract arguments
+		args := make(map[string]interface{})
+		for _, arg := range field.Arguments {
+			val, err := arg.Value.Value(nil)
+			if err == nil {
+				args[arg.Name] = val
+			}
+		}
+
+		result, err := resolver(q.ctx, args)
+		if err != nil {
+			return nil, fmt.Errorf("intrinsic resolver %s: %w", key, err)
+		}
+		data[field.Alias] = result
+	}
+
+	return &executionResult{
+		ServiceURL:     intrinsicServiceName,
+		InsertionPoint: []string{},
+		Data:           data,
+	}, nil
 }
 
 func executeBrambleStep(queryPlanStep *QueryPlanStep) (*executionResult, error) {
